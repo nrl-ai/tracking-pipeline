@@ -1,0 +1,5 @@
+Object_detection:
+  model: "yolov5"
+
+Object_tracking:
+  model: "norfair" #norfair,bytetrack,motpy,sort

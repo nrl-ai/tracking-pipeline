@@ -1,25 +1,16 @@
-import sys
-sys.path.insert(0, 'Detection')
-sys.path.insert(0, 'Tracking')
-
-from Tracking.motpy import Motpy
-from Tracking.sort.tracking import Sort
-from Tracking.norfair import Norfair
-from Tracking.bytetrack import BYTETracker
-from Detection.yolov5.detect import Detector
-
+import yaml
 import numpy as np
 from tools.colors import _COLORS
 import cv2
-
-
-# from
+import sys
+sys.path.insert(0, 'Detection')
+sys.path.insert(0, 'Tracking')
 
 
 def VisTracking(img, data_track, labels):
     '''
     input : data_track [[left,top, right,bottom,id_track]]
-    output : cv2 show image 
+    output : cv2 show image
     '''
 
     for i in range(len(data_track)):
@@ -58,8 +49,8 @@ def VisTracking(img, data_track, labels):
 
 def Detect(detector, frame):
     '''
-    input : detector, cv2 frame 
-    output : numpy boxes (left,top, right,bottom) , numpy scores  
+    input : detector, cv2 frame
+    output : numpy boxes (left,top, right,bottom) , numpy scores
     '''
     box_detects, classes, confs = detector.detect(frame.copy())
     return np.array(box_detects).astype(int), np.array(confs), np.array(classes)
@@ -89,29 +80,49 @@ def ProcessTracking(video, detector, tracker, skip_frame=1):
                 break
         frame_id = (frame_id+1) % skip_frame
 
+
 def euclidean_distance(detection, tracked_object):
     return np.linalg.norm(detection.points - tracked_object.estimate)
 
+
 if __name__ == "__main__":
+    with open("tracking_config.yaml") as fp:
+        config_tracking = yaml.load(fp)
+
+    obj_dt = config_tracking["Object_detection"]["model"]
+    obj_tk = config_tracking["Object_tracking"]["model"]
+
     video = cv2.VideoCapture("videos/palace.mp4")
-    detector = Detector(list_objects=["person"])
+    
+    if(obj_dt == "yolov5"):
+        from Detection.yolov5.detect import Yolov5
+        detector = Yolov5(list_objects=["person"])
 
-    # tracker = Sort()
+    if(obj_tk == "sort"):
+        from Tracking.sort.tracking import Sort
+        tracker = Sort()
 
-    # tracker = Motpy(dt=1/30,
-    #                              model_spec={
-    #                                  # position is a center in 2D space; under constant velocity model
-    #                                  'order_pos': 1, 'dim_pos': 2,
-    #                                  # bounding box is 2 dimensional; under constant velocity model
-    #                                  'order_size': 0, 'dim_size': 2,
-    #                                  'q_var_pos': 1000.,  # process noise
-    #                                  'r_var_pos': 0.1  # measurement noise
-    #                              })
+    elif(obj_tk == "norfair"):
+        from Tracking.norfair import Norfair
+        tracker = Norfair(distance_function=euclidean_distance,
+                          distance_threshold=30)
 
+    elif(obj_tk == "motpy"):
+        from Tracking.motpy import Motpy
+        tracker = Motpy(dt=1/30,
+                        model_spec={
+                            # position is a center in 2D space; under constant velocity model
+                            'order_pos': 1, 'dim_pos': 2,
+                            # bounding box is 2 dimensional; under constant velocity model
+                            'order_size': 0, 'dim_size': 2,
+                            'q_var_pos': 1000.,  # process noise
+                            'r_var_pos': 0.1  # measurement noise
+                        })
 
-    # tracker = Norfair(distance_function=euclidean_distance,
-    #                     distance_threshold=30)
+    elif(obj_tk == "bytetrack"):
+        from Tracking.bytetrack import BYTETracker
 
-    tracker = BYTETracker(track_thresh=0.5,track_buffer=30,match_thresh=0.8,min_box_area=10,frame_rate=30)
+        tracker = BYTETracker(track_thresh=0.5, track_buffer=30,
+                              match_thresh=0.8, min_box_area=10, frame_rate=30)
 
     ProcessTracking(video, detector, tracker)

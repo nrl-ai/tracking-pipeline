@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')
+
 
 
 np.random.seed(0)
