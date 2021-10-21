@@ -1,37 +1,47 @@
 import numpy as np
-from .utils.torch_utils import select_device, load_classifier, time_synchronized
-from .utils.plots import plot_one_box
-from .utils.general import check_img_size, check_requirements, non_max_suppression, apply_classifier, scale_coords, \
-    xyxy2xywh, strip_optimizer, set_logging, increment_path
-from .utils.datasets import LoadStreams, LoadImages
-from .models.experimental import attempt_load
-from .utils.datasets import letterbox
-from numpy import random
-import torch.backends.cudnn as cudnn
+from yolov5.utils.general import non_max_suppression, scale_coords
+from yolov5.models.experimental import attempt_load
+from yolov5.utils.datasets import letterbox
 import torch
 import cv2
 import glob
-from pathlib import Path
-import time
-import argparse
 import os
 import sys
+path_cur = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, "Detection/yolov5")
 
 
-class Detection():
-    def __init__(self, draw=True, list_objects=["person"]):
-        self.device = torch.device("cuda")
+class Detector():
+    def __init__(self, list_objects=None):  # if
+
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
         self.path_model = os.path.join(path_cur, "weights/yolov5s.pt")
         self.model = attempt_load(self.path_model, map_location="cuda")
         self.names = self.model.module.names if hasattr(
             self.model, 'module') else self.model.names
-        self.list_objects = list_objects
-        print(self.names)
+        if(list_objects is None):
+            self.list_objects = self.names
+        else:
+            self.list_objects = list_objects
+        print(self.list_objects)
+        print("Detection use ", self.device)
         self.img_size = 640
         self.conf_thres = 0.35
         self.iou_thres = 0.35
 
-    def detect(self, im0s, draw=False):
+    def detect(self, im0s, margin=0, vis=False):
+        '''
+            input : 
+                margin : margin when crop image
+                im0s : image input
+                vis : draw output and show
+            output :
+                box_detects : [[left,top,right,bottom],...]
+                classes : [label object1 ,label object2...]
+                confs : [confidence object1,....]
+
+        '''
         w, h = im0s.shape[:2]
         img = letterbox(im0s.copy(), new_shape=self.img_size)[0]
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
@@ -52,12 +62,7 @@ class Detection():
                 det[:, :4] = scale_coords(
                     img.shape[2:], det[:, :4], im0s.shape).round()
                 for *x, conf, cls in reversed(det):
-                    # if self.names[int(cls)]=="car" or self.names[int(cls)]=="person" or self.names[int(cls)]=="truck" or self.names[int(cls)]=="bus":
                     if self.names[int(cls)] in self.list_objects:
-                        # print(conf)
-                        margin = 0
-                        if(self.names[int(cls)] == "person"):
-                            margin = 7
                         c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
                         top = max(c1[1]-margin, 0)
                         left = max(c1[0]-margin, 0)
@@ -69,34 +74,16 @@ class Detection():
                             [left, top, right, bottom])
                         classes.append(self.names[int(cls)])
                         confs.append([conf.item()])
-                        cls_ids.append(int(cls))
-        # if(draw):
-            # img = im0s
-            # font = cv2.FONT_HERSHEY_SIMPLEX
-            # for box, lb in zip(box_detects, classes):
-                # img = cv2.rectangle(img, (box[0]-box[2]//2, box[1]-box[3]//2),
-                        # (box[2]//2+box[0], box[3]//2+box[1]), (0, 255, 0), 3, 3)
-                # img=cv2.putText(img,lb,(box[0],box[1]),font,2,(255,0,0),1)
-            # return box_detects, confs, img
+                        cls_ids.append([int(cls)])
+        if(vis):
+            img = im0s
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            for box, lb in zip(box_detects, classes):
+                img = cv2.rectangle(img, (box[0], box[1]),
+                                    (box[2], box[3]), (0, 255, 0), 3, 1)
+                img = cv2.putText(
+                    img, lb, (box[0], box[1]), font, 2, (255, 0, 0), 1)
+            cv2.imshow("image", img)
+            cv2.waitKey(0)
 
-        return box_detects, classes, confs  # bbox_xywh, cls_conf, cls_ids
-
-
-if __name__ == '__main__':
-
-    detector = YOLOV5()
-    for path in glob.glob("test/*.jpg"):
-
-        img = cv2.imread(path)
-
-        boxes, ims, classes, img = detector.detect(img)
-        print(len(boxes))
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        for box, im, lb in zip(boxes, ims, classes):
-            print(lb)
-            img = cv2.rectangle(
-                img, (box[0], box[1]), (box[2]+box[0], box[3]+box[1]), (0, 255, 0), 3, 3)
-            img = cv2.putText(
-                img, lb, (box[0], box[1]), font, 2, (255, 0, 0), 1)
-#         cv2.imshow("image",cv2.resize(img,(500,500)))
-        cv2.waitKey(0)
+        return box_detects, cls_ids, confs  # bbox_xywh,cls_ids, cls_conf

@@ -148,7 +148,7 @@ class Sort(object):
         self.trackers = []
         self.frame_count = 0
 
-    def update(self, dets=np.empty((0, 4)), scores=np.empty((0, 1))):
+    def update(self, dets=np.empty((0, 4)), scores=np.empty((0, 1)),classes=np.empty((0,1))):
         """
         Params:
           dets - a numpy array of detections in the format [[x1,y1,x2,y2,score],[x1,y1,x2,y2,score],...]
@@ -157,7 +157,8 @@ class Sort(object):
 
         NOTE: The number of objects returned may differ from the number of detections provided.
         """
-        dets = np.concatenate((dets, scores), axis=1)
+
+        dets = np.concatenate((dets, scores,classes), axis=1)
         self.frame_count += 1
         # get predicted locations from existing trackers.
         trks = np.zeros((len(self.trackers), 5))
@@ -187,14 +188,14 @@ class Sort(object):
             d = trk.get_state()[0]
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
                 # +1 as MOT benchmark requires positive
-                ret.append(np.concatenate((d, [trk.id+1])).reshape(1, -1))
+                ret.append(np.concatenate((d, [trk.id+1],[trk.cls])).reshape(1, -1))
             i -= 1
             # remove dead tracklet
             if(trk.time_since_update > self.max_age):
                 self.trackers.pop(i)
         if(len(ret) > 0):
             return np.concatenate(ret)
-        return np.empty((0, 5))
+        return np.empty((0, 6))
 
 
 def parse_args():

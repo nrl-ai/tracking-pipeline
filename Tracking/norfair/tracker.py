@@ -8,7 +8,7 @@ from .utils import validate_points
 from .filter import FilterSetup
 
 
-class Tracker:
+class Norfair:
     def __init__(
         self,
         distance_function: Callable[["Detection", "TrackedObject"], float],
@@ -50,8 +50,19 @@ class Tracker:
         self.point_transience = point_transience
         TrackedObject.count = 0
 
-    def update(self, detections: Optional[List["Detection"]] = None, period: int = 1):
+    def get_centroid(self,bbox):
+        x1 = bbox[0]
+        y1 = bbox[1]
+        x2 = bbox[2]
+        y2 = bbox[3]
+        return np.array([(x1 + x2) / 2, (y1 + y2) / 2])
+
+    def update(self, box_detects, scores, classes, period: int = 1):
         self.period = period
+        detections = [
+            Detection(points=self.get_centroid(box), box=box,cls=cls,scores=score)
+            for box,score,cls in zip(box_detects,scores,classes)
+        ]
 
         # Remove stale trackers and make candidate object real if it has hit inertia
         self.tracked_objects = [o for o in self.tracked_objects if o.has_inertia]
@@ -85,8 +96,17 @@ class Tracker:
                     self.past_detections_length
                 )
             )
+        data_tracks=[]
+        for obj in [p for p in self.tracked_objects if not p.is_initializing]:
+            id=obj.id
+            for point, live in zip(obj.estimate, obj.live_points):
+                # try:
+                    if live:
+                        x1,y1,x2,y2=obj.last_detection.box
+                        data_tracks.append([x1,y1,x2,y2]+[id]+[obj.cls])
+                        
 
-        return [p for p in self.tracked_objects if not p.is_initializing]
+        return data_tracks
 
     def update_objects_in_place(
         self,
@@ -216,6 +236,7 @@ class TrackedObject:
                 f"\n[red]ERROR[/red]: The detection list fed into `tracker.update()` should be composed of {Detection} objects not {type(initial_detection)}.\n"
             )
             exit()
+        self.cls=initial_detection.cls
         self.num_points = initial_detection_points.shape[0]
         self.hit_inertia_min: int = hit_inertia_min
         self.hit_inertia_max: int = hit_inertia_max
@@ -363,7 +384,8 @@ class TrackedObject:
 
 
 class Detection:
-    def __init__(self, points: np.array, scores=None, data=None):
+    def __init__(self, points: np.array, scores=None, box=None,cls=None):
         self.points = points
         self.scores = scores
-        self.data = data
+        self.box = box
+        self.cls = cls

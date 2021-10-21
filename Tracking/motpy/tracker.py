@@ -6,9 +6,9 @@ import numpy as np
 import scipy
 from filterpy.kalman import KalmanFilter
 
-from .core import Box, Detection, Track, Vector, setup_logger
-from .metrics import angular_similarity, calculate_iou
-from .model import Model, ModelPreset
+from motpy.core import Box, Detection, Track, Vector, setup_logger
+from motpy.metrics import angular_similarity, calculate_iou
+from motpy.model import Model, ModelPreset
 
 logger = setup_logger(__name__)
 
@@ -229,7 +229,7 @@ class BasicMatchingFunction(MatchingFunction):
             feature_similarity_beta=self.feature_similarity_beta)
 
 
-class MultiObjectTracker:
+class Motpy:
     def __init__(self, dt: float,
                  model_spec: Union[str, dict] = DEFAULT_MODEL_SPEC,
                  matching_fn: Optional[MatchingFunction] = None,
@@ -281,9 +281,10 @@ class MultiObjectTracker:
             cond3 = tracker.steps_alive >= min_steps_alive
             if cond1 and cond2 and cond3:
                 tracks.append(tracker)
-
-        logger.debug('active/all tracks: %d/%d' % (len(self.trackers), len(tracks)))
-        return tracks
+        tracked_objects=[]
+        for track in tracks:
+            tracked_objects.append(track.box_cur.tolist()+[int(track.id)]+[int(track.label)])
+        return tracked_objects
 
     def cleanup_trackers(self) -> None:
         count_before = len(self.trackers)
@@ -291,12 +292,17 @@ class MultiObjectTracker:
         count_after = len(self.trackers)
         logger.debug('deleted %s/%s trackers' % (count_before - count_after, count_before))
 
-    def step(self, detections: Sequence[Detection]) -> Sequence[Track]:
+    def update(self, box_detects, scores,classes) -> Sequence[Track]:
+
+
         """ the method matches the new detections with existing trackers,
         creates new trackers if necessary and performs the cleanup.
         Returns the active tracks after active filtering applied """
 
         # filter out empty detections
+        detections=[]
+        for i in range(box_detects.shape[0]):
+            detections.append(Detection(box = box_detects[i],label=classes[i],score=scores[i]))
         detections = [det for det in detections if det.box is not None]
 
         logger.debug('step with %d detections' % len(detections))
