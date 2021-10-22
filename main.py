@@ -1,7 +1,8 @@
-import yaml
-import numpy as np
-from tools.colors import _COLORS
+
 import cv2
+from tools.colors import _COLORS
+import numpy as np
+import yaml
 import sys
 sys.path.insert(0, 'Detection')
 sys.path.insert(0, 'Tracking')
@@ -47,6 +48,7 @@ def VisTracking(img, data_track, labels):
     cv2.imshow("image", img)
 
 
+
 def Detect(detector, frame):
     '''
     input : detector, cv2 frame
@@ -56,7 +58,7 @@ def Detect(detector, frame):
     return np.array(box_detects).astype(int), np.array(confs), np.array(classes)
 
 
-def ProcessTracking(video, detector, tracker, skip_frame=1):
+def ProcessTracking(video, detector, tracker, deep=False, skip_frame=1):
     '''
     output detector.detect : box_detects, classes, confs
             box_detects : [[left,top, right,bottom]]
@@ -73,7 +75,11 @@ def ProcessTracking(video, detector, tracker, skip_frame=1):
         if(frame_id % skip_frame == 0):
 
             box_detects, scores, classes = Detect(detector, frame)
-            data_track = tracker.update(box_detects, scores, classes)
+            if deep:
+                data_track = tracker.update(
+                    box_detects, scores, classes, frame.copy())
+            else:
+                data_track = tracker.update(box_detects, scores, classes)
 
             VisTracking(frame.copy(), data_track, labels=detector.names)
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -88,15 +94,30 @@ def euclidean_distance(detection, tracked_object):
 if __name__ == "__main__":
     with open("tracking_config.yaml") as fp:
         config_tracking = yaml.load(fp)
+    deep = False
 
     obj_dt = config_tracking["Object_detection"]["model"]
     obj_tk = config_tracking["Object_tracking"]["model"]
 
     video = cv2.VideoCapture("videos/palace.mp4")
-    
+
     if(obj_dt == "yolov5"):
         from Detection.yolov5.detect import Yolov5
         detector = Yolov5(list_objects=["person"])
+
+    elif(obj_dt == "nanodet"):
+        from Detection.nanodet.detect import NanoDet
+        detector = NanoDet()
+    elif(obj_dt == "yolov4"):
+        from Detection.yolov4.detect import Yolov4
+        detector = Yolov4()
+    elif(obj_dt == "yolox"):
+        from Detection.yolox.detect import YoloX
+        detector = YoloX()
+
+
+
+    
 
     if(obj_tk == "sort"):
         from Tracking.sort.tracking import Sort
@@ -124,5 +145,10 @@ if __name__ == "__main__":
 
         tracker = BYTETracker(track_thresh=0.5, track_buffer=30,
                               match_thresh=0.8, min_box_area=10, frame_rate=30)
+    elif(obj_tk == "deepsort"):
+        from Tracking.deep_sort import DeepSort
+        tracker = DeepSort(model_path="Tracking/deep_sort/deep/checkpoint/ckpt.t7", max_dist=0.2,
+                           min_confidence=0.3, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True)
+        deep = True
 
-    ProcessTracking(video, detector, tracker)
+    ProcessTracking(video, detector, tracker, deep)

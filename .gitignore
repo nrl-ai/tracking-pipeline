@@ -1,4 +1,7 @@
 *.pt
 *.mp4
 *__pycache__*
-
+*.ckpt
+*.weights
+*.t7
+*.pth
