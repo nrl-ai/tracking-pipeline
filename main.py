@@ -23,10 +23,11 @@ def CreateFolder(path):
         pass
 
 
-def SaveImage(img,datadir,data_track, labels):
+def SaveImage(img,datadir,id_video,data_track, labels):
 
     for i in range(len(data_track)):
         try:
+            
             box = data_track[i][:4]
             track_id = int(data_track[i][4])
             cls_id = int(data_track[i][5])
@@ -39,8 +40,10 @@ def SaveImage(img,datadir,data_track, labels):
             y0 = int(box[1])
             x1 = int(box[2])
             y1 = int(box[3])
-            text = labels[cls_id]+"_"+str(track_id)+"_"+str(number_track[track_id])+".jpg"
-            path=os.path.join(datadir,str(track_id))
+
+            CreateFolder(os.path.join(datadir,labels[cls_id]))
+            text = id_video+"_"+labels[cls_id]+"_"+str(track_id)+"_"+str(number_track[track_id])+".jpg"
+            path=os.path.join(datadir,labels[cls_id],str(track_id))
             CreateFolder(path)
             # print(os.path.join(path,text))
             cv2.imwrite(os.path.join(path,text),img[y0:y1,x0:x1])
@@ -108,6 +111,7 @@ def ProcessTracking(video,id_video, detector, tracker, deep=False, skip_frame=1)
     input track : numpy box_detects , numpy confs
     output track : [left,top, right,bottom,track_id,cls]
     '''
+    skip_frame=3
     number_track={}
     path = os.path.join(root,id_video)
     CreateFolder(path)
@@ -126,7 +130,7 @@ def ProcessTracking(video,id_video, detector, tracker, deep=False, skip_frame=1)
             else:
                 data_track = tracker.update(box_detects, scores, classes)
 
-            SaveImage(frame.copy(),path,data_track,detector.names)
+            SaveImage(frame.copy(),path,id_video,data_track,detector.names)
             # VisTracking(frame.copy(), data_track, labels=detector.names)
             # if cv2.waitKey(1) & 0xFF == ord('q'):
             #     break
@@ -136,17 +140,19 @@ def ProcessTracking(video,id_video, detector, tracker, deep=False, skip_frame=1)
 def euclidean_distance(detection, tracked_object):
     return np.linalg.norm(detection.points - tracked_object.estimate)
 
-
+import tqdm
 
 if __name__ == "__main__":
     with open("tracking_config.yaml") as fp:
         config_tracking = yaml.load(fp)
     deep = False
-
+    tracker=None
     obj_dt = config_tracking["Object_detection"]["model"]
     obj_tk = config_tracking["Object_tracking"]["model"]
 
-    for path in glob.glob("/media/haobk/New Volume/data_street/*"):
+    for path in tqdm.tqdm(glob.glob("/media/haobk/New Volume/data_street/*")):
+        del tracker
+
 
         if(obj_dt == "yolov5"):
             from Detection.yolov5.detect import Yolov5
