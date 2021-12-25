@@ -1,5 +1,5 @@
 Object_detection:
-  model: "yolov5"
+  model: "yolox" #yolov5,nanodet,yolov4,yolox
 
 Object_tracking:
-  model: "norfair" #norfair,bytetrack,motpy,sort
+  model: "bytetrack" #norfair,bytetrack,motpy,sort
