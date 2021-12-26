@@ -5,11 +5,12 @@ import numpy as np
 import yaml
 import sys
 import os
+import math
 sys.path.insert(0, 'Detection')
 sys.path.insert(0, 'Tracking')
 import glob
 number_track={}
-
+trace={}
 root="./data"
 
 def GetName(name):
@@ -27,27 +28,34 @@ def SaveImage(img,datadir,id_video,data_track, labels):
 
     for i in range(len(data_track)):
         try:
-            
             box = data_track[i][:4]
-            track_id = int(data_track[i][4])
-            cls_id = int(data_track[i][5])
-            if(track_id not in number_track):
-                number_track[track_id]=0
-            else:
-                number_track[track_id]+=1
-
             x0 = int(box[0])
             y0 = int(box[1])
             x1 = int(box[2])
             y1 = int(box[3])
+            x=int((x0+x1)/2)
+            y=int((y0+y1)/2)
+
+            track_id = int(data_track[i][4])
+            cls_id = int(data_track[i][5])
+            if(track_id not in number_track):
+                number_track[track_id]=0
+                trace[track_id]=[(x,y)]
+            else:
+                number_track[track_id]+=1
 
             CreateFolder(os.path.join(datadir,labels[cls_id]))
             text = id_video+"_"+labels[cls_id]+"_"+str(track_id)+"_"+str(number_track[track_id])+".jpg"
             path=os.path.join(datadir,labels[cls_id],str(track_id))
             CreateFolder(path)
             # print(os.path.join(path,text))
-            cv2.imwrite(os.path.join(path,text),img[y0:y1,x0:x1])
-        except:
+            if(number_track[track_id]==0 ):
+               cv2.imwrite(os.path.join(path,text),img[y0:y1,x0:x1])
+            elif( math.hypot(x-trace[track_id][-1][0],y-trace[track_id][-1][1])>(x1-x0+y1-y0)//40):
+               cv2.imwrite(os.path.join(path,text),img[y0:y1,x0:x1])
+               trace[track_id].append((x,y))
+        except Exception as e :
+            print(e)
             pass
 
 
@@ -150,7 +158,7 @@ if __name__ == "__main__":
     obj_dt = config_tracking["Object_detection"]["model"]
     obj_tk = config_tracking["Object_tracking"]["model"]
 
-    for path in tqdm.tqdm(glob.glob("/media/haobk/New Volume/data_street/*")):
+    for path in tqdm.tqdm(glob.glob("/media/data_extra_hdd/create_data_track/video_youtube/*")):
         del tracker
 
 
@@ -200,6 +208,7 @@ if __name__ == "__main__":
                             min_confidence=0.3, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True)
             deep = True
     
-        
+        trace={}
+        number_track = {}
         video = cv2.VideoCapture(path)
         ProcessTracking(video,GetName(path),detector, tracker, deep)

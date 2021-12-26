@@ -18,8 +18,8 @@ sys.path.insert(0, "Detection/yolox")
 class YoloX(object):
     def __init__(
         self,
-        exp_file="exps/example/custom/yolox_m.py",
-        ckpt_file="weights/yolox_m.pth",
+        exp_file="exps/example/custom/yolox_l.py",
+        ckpt_file="weights/yolox_l.pth",
         cls_names=COCO_CLASSES,
         decoder=None,
         fp16=False,
